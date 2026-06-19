@@ -1,0 +1,238 @@
+---
+title: "Partner Age Differentials in Wealth Accumulation"
+subtitle: "Research Note"
+date: "August 4, 2025"
+surname: "Cohen"
+runningtitle: "Partner Age Differentials and Wealth"
+
+author:
+  - name: "Joseph Nathan Cohen"
+    department: "Department of Sociology"
+    institution: "City University of New York, Queens College"
+    address: "65-30 Kissena Boulevard"
+    city: "Flushing, NY"
+    zip: "11367"
+    country: "USA"
+    email: "joseph.cohen@qc.cuny.edu"
+    web: "[jncohen.commons.gc.cuny.edu](https://jncohen.commons.gc.cuny.edu/)"
+    orcid: "0000-0002-6197-4453"
+
+abstract: |
+  This note tests whether incorporating consideration partner age renders a better combination of predictive power and parsimony in regression models predicting household wealth accumulation. Using data from the U.S. Federal Reserve's (2023) *Survey of Consumer Finances* (SCF), it estimates the distribution of domestic partners' age differentials, and tests the results of alternative strategies for measuring the concept of "household age" in linear models predicting household net worth. The results suggest that including age differentials in SCF-built wealth accumulation models mostly introduces noise, and that the age of the household head is a parsimonious and highly-predictive stand-in for overall household age.
+
+keywords:
+  - Survey of Consumer Finances
+  - Wealth Accumulation
+  - Household Organization
+
+bibliography: biblio.bib
+csl: default.csl
+
+anonymize: false
+doublespace: false
+linenumbers: false
+numbersections: false
+maincolumns: 1
+
+format:
+  pdf:
+    template: jnctemplate.tex
+---
+
+```{r setup, include = F}
+library(scf)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(readr)
+
+set.seed(213)
+```
+# Introduction
+
+Do age differences help predict couples' economic fortunes?  This research note considers the predictive power of domestic partners' age differentials in regression models predicting wealth accumulation.  Using data from the U.S. Federal Reserve's (2023) *Survey of Consumer Finances* (SCF), it estimates the distribution of domestic partners' age differentials, and tests the results of alternative strategies for measuring "household age" in linear models predicting household net worth.  The results suggest that including age differentials in SCF-built wealth accumulation models mostly introduces noise, and that the age of the household head is a parsimonious and highly-predictive stand-in for overall household age.  
+
+# Background
+
+Age is a powerful predictor of household wealth accumulation (Cohen 2025a). Older people have had more time to accumulate personal property, and are more likely to have received intergenerational transfers.  
+
+It is a convention in household finance surveys to equate the household's age with the age of its "head".  In the SCF, the *head* is the male in a mixed-sex couple or the elder of a same-sex couple.  Implicitly, such a strategy for measuring household age presumes that the secondary head's age is immaterial to predicting wealth accumulation.
+
+There are reasons to expect age differentials to predict wealth. For example, younger or female partners may be less likely to have accumulated as much personal wealth and to have received inheritances than their older counterparts.  Ignoring their age might blind our model to the importance of their role in wealth accumulation.  
+
+We might assume that large age differentials occur when one partner is well-resourced. This assumption is consistent those who believe that partnering is influenced by attempts to trade gene quality and fertility for resources or power (e.g., Buss 1994). However, such unions may often take place after divorce, which is itself predicted to have a negative effect on wealth accumulation (Cohen 2025a).  
+
+On the other hand, incorporating the effects of age differentials comes at the cost of model parsimony, and there are reasons to expect that age differentials do not add much explanatory or predictive power.  The effects may be conflicting.  In addition, and given that wealth accumulates over decades (Cohen 2025a), it may make little difference if a couple's age difference between a couple is two *versus* four *versus* seven years.  
+
+It is possible to imagine scenarios in which age differentials may be predictively powerful or irrelevant.  The strategy employed here is to focus on empirics, and proceed from observed findings on the relationship between age differentials and wealth accumulation.  Next, we turn to the design of the study.
+
+# Methods
+
+This analysis uses data from the U.S. Federal Reserve’s *Survey of Consumer Finances* (SCF) @Fed2023. It was analyzed using the R package `scf` @Cohen2025a.
+
+```{r data loading, include = F}
+
+scf_download(2022)
+
+scf2022 <- scf_load(2022)
+
+```
+
+```{r data wrangling, include = F}
+
+scf2022 <- scf_update(scf2022, 
+                  nw_btcoded = ifelse(networth > 10000000, 10000000, ifelse(networth < 1, 1, networth)),
+                  log_networth = log(nw_btcoded),
+                  race1 = factor(ifelse(x6809 == -7, 5, x6809), levels = 1:5, 
+                                 labels = c("White", "Black", "Hispanic", "Asian", "Other")),
+                 mstat = factor(x8023,
+                                    labels = c("Married","Cohabiting","Separated",                              "Divorced","Widowed","NeverMarried")),
+                edu1 = factor(x5931, levels = c(-1,1:14)),
+                 education1 = ifelse(edu1 %in% c(-1, 1:7), 1,
+                              ifelse(edu1 %in% 8:11, 2,
+                              ifelse(edu1 == 12, 3,
+                              ifelse(edu1 %in% 13:15, 4, 0)))),  
+                  age1 = age,
+                  age2 = ifelse(x104 == 0, NA, x104),
+                  age_diff = age1 - age2,
+                  close_age = age_diff>=-2 & age_diff<=2
+                  )
+
+scf2022 <- scf_subset(scf2022, mstat == "Married" | mstat == "Cohabiting")
+
+```
+
+***Outcome: Net Worth.***  Net worth is the primary outcome of interest in this analysis.  It is defined as the sum of all assets minus all liabilities, and is measured in 2022 U.S. dollars.  Folowing Cohen (2025a), we model a transformed version of the SCF's net worth metric, in which we bottom- and top-code it at \$1 and \$10 million, respectively, then log the variable.  That paper describes the metric, its measurement, and its meaning at greater length.  
+
+***Focal Variable: Partner Age.***  We compare four specification strategies: (1) model the second head's age, (2) model the difference between the first and second heads' ages, (3) use a dummy variable that denotes partners who are close in age, and (4) ignore the secondary head's age.    
+
+***Controls.*** To gauge the explanatory power of respecifying age in wealth accumulation models net of commonly-used controls, the analysis looks at the performance of our alternative age metrics net of each partner's race, educational attainment, and parental college attainment (see Cohen 2025a).  
+
+***Regression Analysis.***   I compare the results of linear regression models, assing comaprative model fit by comparing mean Akaike Information Criterion (AIC) scores. I also note whether other predictors are affected by these age measurement strategies.
+
+# Prevalence of Age Differentials
+
+Figure 1 (below) depicts the distribution of household age differentials among paired households in our data.  The *age differential* is defined as the age of the head less the age of the partner.  A negative value means that the couple is mixed-sex and the younger member is the male.  It is not possible to have a negative value in a same-sex couple because the head is by definition the oldest.  To improve legibility, I bottom- and top-coded the difference at -7 and +15, beyond which categories' estimated prevalence in the population almost all fell below 0.5% of the population.
+
+
+```{r freq of agediff, include = F, echo = F}
+
+scf2022 <- scf_update(scf2022, 
+                      agediff0 = age_diff,
+                      age_diff = agediff0,
+                      agediff_raw = ifelse(age_diff < -9, -9,
+                                           ifelse(age_diff > 15, 15, age_diff)),
+                      agediff = factor(agediff_raw, levels = -9:15))
+
+agediff_freq <- scf_freq(scf2022, ~agediff)$results
+agediff_freq$category <- factor(agediff_freq$category, levels = as.character(-9:15))
+
+ggplot(agediff_freq, aes(x = category, y = proportion)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  scale_x_discrete(drop = FALSE, labels = c("-9" = "≤–9","15" = "≥15")) +
+  scale_y_continuous(breaks = 0:14, limits = c(0, 14), expand = c(0, 0)) +
+  labs(
+    x = "Age Difference in Years",
+    y = "Percent of Paired Households") +
+  theme_minimal(base_size = 13) +
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 9),
+    axis.title.x = element_text(margin = margin(t = 5)),
+    panel.grid.major.y = element_line(color = "grey70", size = 0.5),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.x = element_blank())
+
+
+ggsave(file = "agediff_plot.png")
+
+```
+
+![Distribution of Age Differences Between Paired Household Heads]("agediff_plot.png")
+
+```{r stats, include = F, eval = F}
+
+scf_mean(scf2022, ~age_diff)
+scf_percentile(scf2022, ~age_diff, q = 0.25)
+scf_percentile(scf2022, ~age_diff, q = 0.75)
+
+scf2022 <- scf_update(scf2022, 
+                      y5_age_close = ifelse(age_diff >= -5 & age_diff <= 5, TRUE, FALSE),
+                      y10_age_close = ifelse(age_diff >= -10 & age_diff <= 10, TRUE, FALSE),
+                      older_male = ifelse(age_diff > 0, TRUE, FALSE),
+                      older_female = ifelse(age_diff < 0, TRUE, FALSE),
+                      older_male_10y = ifelse(age_diff >= 10, TRUE, FALSE),
+                      older_female_10y = ifelse(age_diff <= -10, TRUE, FALSE))
+scf_freq(scf2022, ~y5_age_close)
+scf_freq(scf2022, ~y10_age_close)
+scf_freq(scf2022, ~older_male)
+scf_freq(scf2022, ~older_female)
+scf_freq(scf2022, ~older_male_10y)
+scf_freq(scf2022, ~older_female_10y)
+
+```
+
+The most salient point to emerge from these estimates are that people tend to marry others who are close in age.  There is a mean age difference of +2.3 years.  The middle 50% of the population includes couples an age differential of zero (25th percentile) to +4 years (75th percentile).  About 77% of the population is paired with someone who is within five years of their age, and 93% are within ten years.  Given that wealth covaries with age over a scale of decades rather than years (Cohen 2025a), a large majority of couples are paired with someone whose age is close enough to theirs that they are in the same general life stage of wealth accumulation.  This suggests that the age of the household head is a reasonable proxy for the age of the household as a whole.
+
+The data do show a gender imbalance in which mixed-sex couples are more likely to be comprised of older men and younger women. The male/elder partner is at least one year older in about 65% of couples.  The female is older than their male partner in about 22% of households.  Couples' age differentials were greater than +10  year older males/elders in about 7.6% of houseohlds, and less than -10 (with female elder in a mixed-sex couple) in 1.3% of households.
+
+I reserve extensive bivariate comparisons for the sake of focus and brevity.  Age differentials were roughly the same between married and cohabiting couples.  Age differentials were on average larger among the lowest education groups and in houseolds headed by a Black person.
+
+```{r bivariates, include = F, eval = F}
+
+scf_mean(scf2022, ~age_diff, by = ~mstat)
+scf_mean(scf2022, ~age_diff, by = ~education1)
+scf_mean(scf2022, ~age_diff, by = ~race1)
+
+```
+
+# Comparisons in Regression Analysis
+
+Table 1 (below) shows our four different model specifications.  They reveal near-identical coefficient estimates and model fits.
+
+```{r regression, eval = T, include = F}
+
+# Fit models
+model_a <- scf_ols(scf2022, log_networth ~ age1 + factor(race1) + factor(mstat) + factor(education1))
+model_b <- scf_ols(scf2022, log_networth ~ age1 + age2 + factor(race1) + factor(mstat) + factor(education1))
+model_c <- scf_ols(scf2022, log_networth ~ age1 + agediff_raw + factor(race1) + factor(mstat) + factor(education1))
+model_d <- scf_ols(scf2022, log_networth ~ age1 + close_age + factor(race1) + factor(mstat) + factor(education1))
+
+# Compile model list and names
+models <- list(model_a, model_b, model_c, model_d)
+model_names <- c("Model A", "Model B", "Model C", "Model D")
+
+# Optional: define more human-readable variable names
+custom_labels <- c(
+  age1 = "Age of Head",
+  age2 = "Age of Partner",
+  agediff = "Age Difference",
+  close_ageTRUE = "Close in Age (±2 Years)"
+)
+
+
+```
+
+
+```{r, echo = F, eval = T, results = 'asis'}
+
+scf_regtable(models, digits = 3, output = "markdown")
+
+```
+
+These are very straightforward results. Substantively, the predicted effects associated with partner age are small and do not meaningfully alter model fit. When we include the partner’s raw age (Model B), the coefficient estimate implies that each additional year of partner age is associated with an approximate CHECK2.8% versus CHECK3.0% increase in net worth, assuming all else equal. This effect is modest and only slightly smaller than the revised coefficient on the head’s age in the same model.  In Model C, FILL.  MODEL D.
+
+Taken together, these results indicate that incorporating partner age yields marginal predictive gains. While the variables can register as statistically significant, their effects are substantively minor. The head’s age continues to perform well as a simple, robust proxy for household age in SCF-based models of wealth accumulation.
+
+It is similar with regard to the controls.  For example, these models predict that a person who completes college will have between CHECK 578% and 587% more wealth than a person who does not complete high school.  Likewise, the the effect of being headed by a Black person is predicted to have an effect that ranges between CHECK -45% and -47% less wealth than a White-headed household.  These are substantively identical results.
+
+Moreover, fit scores are identical.  R-Squared varied over a fraction of a percentage point.  The AIC scores varied over a range of three points, which is well below the standard thresholds to infer significant differences in model fit B(Burnham and Anderson 2002).  The difference in fit across specifications is near-zero, even if the spouse's age registers as significant.
+
+# Discussion
+
+The analyses show that age differentials between paired heads do not predict their wealth accumulation.  FINALIZE RECOMMENDATIONS FOR MODELING WEALTH ACCUMULATION IN SCF.
+
